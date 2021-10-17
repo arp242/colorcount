@@ -12,7 +12,17 @@ import (
 
 func main() {
 	displayColors := flag.Bool("c", false, "display all the colours, not just the count")
+	show := flag.Bool("s", false, "show the image")
 	flag.Parse()
+
+	if *show {
+		*displayColors = true
+	}
+
+	nums := "0123456789" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 
 	for _, f := range flag.Args() {
 		fp, err := os.Open(f)
@@ -26,8 +36,14 @@ func main() {
 			log.Fatal(err)
 		}
 
-		colors := make(map[string][]uint32)
+		type color struct {
+			char  rune
+			color []uint32
+		}
+
+		colors := make(map[string]color)
 		bounds := img.Bounds()
+		i := 0
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
 				r, g, b, a := img.At(x, y).RGBA()
@@ -36,7 +52,10 @@ func main() {
 				if v[3] < 255 {
 					k += fmt.Sprintf("%.2x", v[3])
 				}
-				colors[k] = v
+				if _, ok := colors[k]; !ok {
+					colors[k] = color{rune(nums[i]), v}
+					i++
+				}
 			}
 		}
 
@@ -57,10 +76,34 @@ func main() {
 					w = 0
 				}
 
-				fmt.Printf("\x1b[48;2;%d;%d;%dm \x1b[0m%s ",
-					colors[c][0], colors[c][1], colors[c][2], c)
+				rt, gt, bt := lighten(colors[c].color[0], colors[c].color[1], colors[c].color[2])
+				fmt.Printf("\x1b[48;2;%d;%d;%dm\x1b[97m\x1b[38;2;%d;%d;%dm%s\x1b[0m %s ",
+					colors[c].color[0], colors[c].color[1], colors[c].color[2],
+					rt, gt, bt,
+					string(colors[c].char), c)
 			}
 			fmt.Println("")
 		}
+
+		if *show {
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					r, g, b, a := img.At(x, y).RGBA()
+					v := []uint32{r >> 8, g >> 8, b >> 8, a >> 8}
+					rt, gt, bt := lighten(v[0], v[1], v[2])
+					k := fmt.Sprintf("#%.2x%.2x%.2x", v[0], v[1], v[2])
+
+					fmt.Printf("\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm%s\x1b[0m",
+						v[0], v[1], v[2],
+						rt, gt, bt,
+						string(colors[k].char))
+				}
+				fmt.Println()
+			}
+		}
 	}
+}
+
+func lighten(r, g, b uint32) (uint32, uint32, uint32) {
+	return r + 80, g + 80, b + 80
 }

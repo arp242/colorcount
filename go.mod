@@ -1,3 +1,3 @@
-module arp242.net/colorcount
+module zgo.at/colorcount
 
 go 1.13
